@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
   Logger,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/auth.dto';
@@ -46,11 +47,18 @@ export class AuthController {
   ): Promise<{ accessToken: string }> {
     this.logger.log('Registration attempt', { registerDto });
     try {
-      const jwt = await this.authService.register(registerDto);
+      const user = await this.authService.register(registerDto);
+      if (!user) {
+        this.logger.warn(
+          `Registration failed for userId: ${registerDto.userId}`,
+        );
+        throw new BadRequestException('Registration failed');
+      }
+      const jwt = await this.authService.login(user);
       this.logger.log(
         `User registered and logged in successfully: ${registerDto.userId}`,
       );
-      return jwt;
+      return { accessToken: jwt.accessToken };
     } catch (error) {
       if (error.message === 'User already exists with this userId') {
         this.logger.warn(

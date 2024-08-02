@@ -1,13 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from '../user/entities/user.entity';
-import { UnauthorizedException } from '@nestjs/common';
-import * as jwt from 'jsonwebtoken';
-import { Repository } from 'typeorm';
+import { UserService } from '../user/user.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { User } from '../user/entities/user.entity';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { UnauthorizedException } from '@nestjs/common';
+import * as jwt from 'jsonwebtoken'; // jwtをインポート
+import { Repository } from 'typeorm';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -20,6 +20,7 @@ describe('AuthService', () => {
         AuthService,
         JwtService,
         ConfigService,
+        UserService,
         {
           provide: getRepositoryToken(User),
           useClass: Repository,
@@ -28,6 +29,7 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+    userService = module.get<UserService>(UserService);
   });
 
   it('should be defined', () => {
@@ -47,6 +49,7 @@ describe('AuthService', () => {
         updatedAt: new Date(),
         deletedAt: null,
       };
+
       const token = jwt.sign({ userId: user.userId }, 'test-secret');
 
       jest.spyOn(userService, 'createUser').mockResolvedValue(user);
@@ -56,15 +59,7 @@ describe('AuthService', () => {
 
       expect(userService.createUser).toHaveBeenCalledWith(registerDto);
       expect(service.login).toHaveBeenCalledWith(user);
-
-      expect(result).toHaveProperty('accessToken');
-      expect(result.accessToken).toBe(token);
-
-      const decoded = jwt.verify(
-        result.accessToken,
-        'test-secret',
-      ) as jwt.JwtPayload;
-      expect(decoded.userId).toEqual(user.userId);
+      expect(result).toEqual({ accessToken: token });
     });
 
     it('should throw an UnauthorizedException if user already exists', async () => {

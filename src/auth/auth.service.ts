@@ -90,7 +90,7 @@ export class AuthService {
   async register(registerDto: {
     userId: string;
     password: string;
-  }): Promise<{ accessToken: string }> {
+  }): Promise<User> {
     const { userId, password } = registerDto;
     this.logger.log(`Registering user with userId: ${userId}`);
     try {
@@ -110,9 +110,7 @@ export class AuthService {
       });
       await this.userRepository.save(newUser);
       this.logger.log(`User registered successfully with userId: ${userId}`);
-
-      const jwt = await this.login(newUser);
-      return jwt;
+      return newUser;
     } catch (error) {
       this.logger.error(
         `Error registering user with userId: ${userId}`,

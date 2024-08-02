@@ -50,21 +50,28 @@ describe('AuthController', () => {
         userId: 'newuser@example.com',
         password: 'password',
       };
-      const token = jwt.sign({ userId: registerDto.userId }, 'test-secret'); // トークンを文字列として生成
+      const user = {
+        userId: 'newuser@example.com',
+        password: 'hashedpassword',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      };
+      const token = jwt.sign({ userId: user.userId }, 'test-secret'); // トークンを文字列として生成
 
-      jest.spyOn(service, 'register').mockResolvedValue({ accessToken: token });
+      jest.spyOn(service, 'register').mockResolvedValue(user);
       jest.spyOn(service, 'login').mockResolvedValue({ accessToken: token }); // トークンを文字列として渡す
 
       const result = await controller.register(registerDto);
 
       expect(service.register).toHaveBeenCalledWith(registerDto);
-      expect(service.login).toHaveBeenCalledWith(expect.any(User)); // ユーザーオブジェクトを期待
+      expect(service.login).toHaveBeenCalledWith(user);
 
       const decoded = jwt.verify(
         result.accessToken,
         'test-secret',
       ) as jwt.JwtPayload; // トークンを検証
-      expect(decoded.userId).toEqual(registerDto.userId); // デコードされたペイロードのuserIdを確認
+      expect(decoded.userId).toEqual(user.userId); // デコードされたペイロードのuserIdを確認
     });
 
     it('should throw an UnauthorizedException if registration fails', async () => {
