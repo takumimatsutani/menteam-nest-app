@@ -66,7 +66,7 @@ describe('AuthController', () => {
       expect(service.login).toHaveBeenCalledWith(user);
 
       const decoded = jwt.verify(
-        result.accessToken.accessToken,
+        result.accessToken,
         'test-secret',
       ) as jwt.JwtPayload; // トークンを検証
       expect(decoded.userId).toEqual(user.id); // デコードされたペイロードのuserIdを確認
