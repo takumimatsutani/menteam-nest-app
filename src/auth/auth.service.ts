@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../user/user.entity';
+import { User } from '../user/entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -22,26 +22,26 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<User | null> {
-    this.logger.log(`Validating user with email: ${email}`);
+  async validateUser(userId: string, password: string): Promise<User | null> {
+    this.logger.log(`Validating user with userId: ${userId}`);
     try {
       const user: User | undefined = await this.userRepository.findOne({
-        where: { email },
+        where: { userId },
       });
       if (!user) {
-        this.logger.warn(`User not found with email: ${email}`);
+        this.logger.warn(`User not found with userId: ${userId}`);
         return null;
       }
       const isMatch: boolean = await bcrypt.compare(password, user.password);
       if (isMatch) {
-        this.logger.log(`Password match for user with email: ${email}`);
+        this.logger.log(`Password match for user with userId: ${userId}`);
         return user;
       }
-      this.logger.warn(`Invalid password for user with email: ${email}`);
+      this.logger.warn(`Invalid password for user with userId: ${userId}`);
       return null;
     } catch (error) {
       this.logger.error(
-        `Error validating user with email: ${email}`,
+        `Error validating user with userId: ${userId}`,
         error.stack,
       );
       throw new InternalServerErrorException('Error validating user');
@@ -62,11 +62,10 @@ export class AuthService {
   }
 
   async login(user: User): Promise<{ accessToken: string }> {
-    this.logger.log(`Generating JWT for user with email: ${user.email}`);
+    this.logger.log(`Generating JWT for user with userId: ${user.userId}`);
     try {
-      const payload: { email: string; sub: number } = {
-        email: user.email,
-        sub: user.id,
+      const payload: { userId: string } = {
+        userId: user.userId,
       };
       const secret: string = this.configService.get<string>('JWT_SECRET');
       const expiresIn: string =
@@ -76,12 +75,12 @@ export class AuthService {
         expiresIn,
       });
       this.logger.log(
-        `JWT generated successfully for user with email: ${user.email}`,
+        `JWT generated successfully for user with userId: ${user.userId}`,
       );
       return { accessToken };
     } catch (error) {
       this.logger.error(
-        `Error generating JWT for user with email: ${user.email}`,
+        `Error generating JWT for user with userId: ${user.userId}`,
         error.stack,
       );
       throw new InternalServerErrorException('Error generating JWT');
@@ -89,32 +88,34 @@ export class AuthService {
   }
 
   async register(registerDto: {
-    email: string;
+    userId: string;
     password: string;
-  }): Promise<User | null> {
-    const { email, password } = registerDto;
-    this.logger.log(`Registering user with email: ${email}`);
+  }): Promise<{ accessToken: string }> {
+    const { userId, password } = registerDto;
+    this.logger.log(`Registering user with userId: ${userId}`);
     try {
       const existingUser: User | undefined = await this.userRepository.findOne({
-        where: { email },
+        where: { userId },
       });
 
       if (existingUser) {
-        this.logger.warn(`User already exists with email: ${email}`);
-        throw new ConflictException('User already exists with this email');
+        this.logger.warn(`User already exists with userId: ${userId}`);
+        throw new ConflictException('User already exists with this userId');
       }
 
       const hashedPassword: string = await this.hashPassword(password);
       const newUser: User = this.userRepository.create({
-        email,
+        userId,
         password: hashedPassword,
       });
       await this.userRepository.save(newUser);
-      this.logger.log(`User registered successfully with email: ${email}`);
-      return newUser;
+      this.logger.log(`User registered successfully with userId: ${userId}`);
+
+      const jwt = await this.login(newUser);
+      return jwt;
     } catch (error) {
       this.logger.error(
-        `Error registering user with email: ${email}`,
+        `Error registering user with userId: ${userId}`,
         error.stack,
       );
       throw new InternalServerErrorException('Error registering user');

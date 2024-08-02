@@ -1,34 +1,67 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './user.entity';
-import { UserProfile } from './userProfile.entity';
-import { UserSlack } from './userSlack.entity';
-import { UserRole } from './userRole.entity';
+import { Repository, In } from 'typeorm';
+import { User } from './entities/user.entity';
+import { UserSlack } from './entities/user-slack.entity';
+import { UserRole } from './entities/user-role.entity';
+import { UserProfile } from './entities/user-profile.entity';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserSlackDto } from './dto/update-user-slack.dto';
+import { CreateUserSlackDto } from './dto/create-user-slack.dto';
+import { CreateUserProfileDto } from './dto/create-user-profile.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(UserProfile)
-    private userProfileRepository: Repository<UserProfile>,
+    private readonly userRepository: Repository<User>,
     @InjectRepository(UserSlack)
-    private userSlackRepository: Repository<UserSlack>,
+    private readonly userSlackRepository: Repository<UserSlack>,
     @InjectRepository(UserRole)
-    private userRoleRepository: Repository<UserRole>,
+    private readonly userRoleRepository: Repository<UserRole>,
+    @InjectRepository(UserProfile)
+    private readonly userProfileRepository: Repository<UserProfile>,
   ) {}
 
-  async findUserSlackByEmail(email: string): Promise<UserSlack> {
-    return this.userSlackRepository.findOne({
-      where: { email },
+  async createUser(createUserDto: CreateUserDto): Promise<User> {
+    const newUser = this.userRepository.create(createUserDto);
+    return this.userRepository.save(newUser);
+  }
+
+  async findUserByEmail(userId: string): Promise<User> {
+    return this.userRepository.findOne({
+      where: { userId },
       withDeleted: true,
     });
   }
 
-  async restoreUserSlack(userSlackId: string): Promise<void> {
+  async updateUserPassword(userId: string, password: string): Promise<void> {
+    await this.userRepository.update(userId, { password });
+  }
+
+  async restoreUser(userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { userId },
+      withDeleted: true,
+    });
+    if (user) {
+      user.deletedAt = null;
+      await this.userRepository.save(user);
+    }
+  }
+
+  async findUserSlackByUserId(userId: string): Promise<UserSlack> {
+    // メソッド名を修正
+    return this.userSlackRepository.findOne({
+      where: { userId },
+      withDeleted: true,
+    });
+  }
+
+  async restoreUserSlack(userId: string): Promise<void> {
     const userSlack = await this.userSlackRepository.findOne({
-      where: { id: userSlackId },
+      where: { userId },
       withDeleted: true,
     });
     if (userSlack) {
@@ -38,67 +71,44 @@ export class UserService {
   }
 
   async updateUserSlack(
-    userSlackId: string,
-    userSlackData: Partial<UserSlack>,
+    userId: string,
+    updateData: UpdateUserSlackDto,
   ): Promise<void> {
-    await this.userSlackRepository.update(userSlackId, userSlackData);
+    await this.userSlackRepository.update(userId, updateData);
   }
 
-  async createUserSlack(userSlackData: Partial<UserSlack>): Promise<UserSlack> {
-    const newUserSlack = this.userSlackRepository.create(userSlackData);
-    return this.userSlackRepository.save(newUserSlack);
+  async createUserSlack(createData: CreateUserSlackDto): Promise<void> {
+    const newUserSlack = this.userSlackRepository.create(createData);
+    await this.userSlackRepository.save(newUserSlack);
   }
 
-  async clearUserRoles(email: string): Promise<void> {
-    await this.userRoleRepository.delete({ userId: email });
+  async clearUserRoles(userId: string): Promise<void> {
+    await this.userRoleRepository.delete({ userId });
   }
 
-  async restoreUserRoles(email: string, roleIds: number[]): Promise<void> {
+  async restoreUserRoles(userId: string, roleIds: number[]): Promise<void> {
     await this.userRoleRepository.restore({
-      userId: email,
-      roleId: roleIds,
+      userId,
+      roleId: In(roleIds),
     });
   }
 
-  async createUserRoles(email: string, roleIds: number[]): Promise<void> {
-    const userRoles = roleIds.map((roleId) => ({ userId: email, roleId }));
-    await this.userRoleRepository.insert(userRoles);
+  async createUserRoles(userId: string, roleIds: number[]): Promise<void> {
+    const createUserRoles = roleIds.map((roleId) => ({ userId, roleId }));
+    await this.userRoleRepository.save(createUserRoles);
   }
 
-  async findUserByEmail(email: string): Promise<User> {
-    return this.userRepository.findOne({ where: { email }, withDeleted: true });
-  }
-
-  async restoreUser(userId: string): Promise<void> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      withDeleted: true,
-    });
-    if (user) {
-      user.deletedAt = null;
-      await this.userRepository.save(user);
-    }
-  }
-
-  async updateUserPassword(userId: string, password: string): Promise<void> {
-    await this.userRepository.update(userId, { password });
-  }
-
-  async createUser(userData: Partial<User>): Promise<User> {
-    const newUser = this.userRepository.create(userData);
-    return this.userRepository.save(newUser);
-  }
-
-  async findUserProfileByEmail(email: string): Promise<UserProfile> {
+  async findUserProfileByUserId(userId: string): Promise<UserProfile> {
+    // メソッド名を修正
     return this.userProfileRepository.findOne({
-      where: { email },
+      where: { userId },
       withDeleted: true,
     });
   }
 
-  async restoreUserProfile(userProfileId: string): Promise<void> {
+  async restoreUserProfile(userId: string): Promise<void> {
     const userProfile = await this.userProfileRepository.findOne({
-      where: { id: userProfileId },
+      where: { userId },
       withDeleted: true,
     });
     if (userProfile) {
@@ -108,16 +118,14 @@ export class UserService {
   }
 
   async updateUserProfile(
-    userProfileId: string,
-    userProfileData: Partial<UserProfile>,
+    userId: string,
+    updateData: UpdateUserProfileDto,
   ): Promise<void> {
-    await this.userProfileRepository.update(userProfileId, userProfileData);
+    await this.userProfileRepository.update(userId, updateData);
   }
 
-  async createUserProfile(
-    userProfileData: Partial<UserProfile>,
-  ): Promise<UserProfile> {
-    const newUserProfile = this.userProfileRepository.create(userProfileData);
-    return this.userProfileRepository.save(newUserProfile);
+  async createUserProfile(createData: CreateUserProfileDto): Promise<void> {
+    const newUserProfile = this.userProfileRepository.create(createData);
+    await this.userProfileRepository.save(newUserProfile);
   }
 }

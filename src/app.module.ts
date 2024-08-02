@@ -13,6 +13,7 @@ import { RecruitingModule } from './recruiting/recruiting.module';
 import { CustomLogger, accessLogger } from './core/logger';
 import { AllExceptionsFilter } from './core/status_response';
 import { JwtStrategy } from './auth/strategies/jwt.strategy';
+import { RoleModule } from './role/role.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { JwtStrategy } from './auth/strategies/jwt.strategy';
     SlackModule,
     SystemManageModule,
     RecruitingModule,
+    RoleModule,
   ],
   providers: [
     {

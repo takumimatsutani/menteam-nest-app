@@ -1,13 +1,15 @@
+// src/user/user.module.ts
 import { Module } from '@nestjs/common';
-import { UserController } from './user.controller';
-import { UserService } from './user.service';
-import { User } from './user.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from './entities/user.entity';
+import { UserSlack } from './entities/user-slack.entity';
+import { UserRole } from './entities/user-role.entity';
+import { UserProfile } from './entities/user-profile.entity';
+import { UserService } from './user.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
-  controllers: [UserController],
-  providers: [UserService, User],
-  exports: [UserService, User, TypeOrmModule.forFeature([User])],
+  imports: [TypeOrmModule.forFeature([User, UserSlack, UserRole, UserProfile])],
+  providers: [UserService],
+  exports: [UserService, TypeOrmModule],
 })
 export class UserModule {}
