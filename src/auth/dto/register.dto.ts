@@ -1,10 +1,13 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsString, IsArray, ArrayNotEmpty } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
   userId: string;
 
   @IsString()
-  @MinLength(6)
-  password: string;
+  password?: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  roleIds: string[];
 }

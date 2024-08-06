@@ -3,13 +3,16 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
-  ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { ConfigService } from '@nestjs/config';
+import { RegisterDto } from './dto/register.dto';
+import { UserRole } from 'src/user/userRole.entity';
+import { Role } from 'src/user/entities/role.entity';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +21,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private userRoleRepository: Repository<UserRole>,
+    private roleRepository: Repository<Role>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -61,7 +66,7 @@ export class AuthService {
     }
   }
 
-  async login(user: User): Promise<{ accessToken: string }> {
+  async login(user: User): Promise<{ token: string }> {
     this.logger.log(`Generating JWT for user with userId: ${user.userId}`);
     try {
       const payload: { userId: string } = {
@@ -70,14 +75,14 @@ export class AuthService {
       const secret: string = this.configService.get<string>('JWT_SECRET');
       const expiresIn: string =
         this.configService.get<string>('JWT_EXPIRES_IN');
-      const accessToken: string = this.jwtService.sign(payload, {
+      const token: string = this.jwtService.sign(payload, {
         secret,
         expiresIn,
       });
       this.logger.log(
         `JWT generated successfully for user with userId: ${user.userId}`,
       );
-      return { accessToken };
+      return { token };
     } catch (error) {
       this.logger.error(
         `Error generating JWT for user with userId: ${user.userId}`,
@@ -87,30 +92,62 @@ export class AuthService {
     }
   }
 
-  async register(registerDto: {
-    userId: string;
-    password: string;
-  }): Promise<User> {
-    const { userId, password } = registerDto;
+  async register(
+    registerDto: RegisterDto,
+  ): Promise<{ user: User; userCreated: boolean; roles: Role[] }> {
+    const { userId, password, roleIds } = registerDto;
     this.logger.log(`Registering user with userId: ${userId}`);
+
+    const roles = await this.roleRepository.findByIds(roleIds);
+    if (roleIds.length !== roles.length) {
+      throw new BadRequestException('Invalid roleIds');
+    }
+
+    const generatedPassword =
+      password || crypto.randomBytes(16).toString('base64').substring(0, 16);
+
+    let user: User;
+    let userCreated: boolean;
+
     try {
-      const existingUser: User | undefined = await this.userRepository.findOne({
+      [user, userCreated] = await this.userRepository.findOrCreate({
         where: { userId },
+        defaults: { password: generatedPassword },
       });
 
-      if (existingUser) {
-        this.logger.warn(`User already exists with userId: ${userId}`);
-        throw new ConflictException('User already exists with this userId');
+      if (!userCreated) {
+        await this.userRepository.restore({ userId });
+        user.password = generatedPassword;
+        await this.userRepository.save(user);
       }
 
-      const hashedPassword: string = await this.hashPassword(password);
-      const newUser: User = this.userRepository.create({
-        userId,
-        password: hashedPassword,
-      });
-      await this.userRepository.save(newUser);
-      this.logger.log(`User registered successfully with userId: ${userId}`);
-      return newUser;
+      let ignoreRoleIds: string[] = [];
+
+      if (!userCreated) {
+        await this.userRoleRepository.softDelete({ userId });
+        await this.userRoleRepository.restore({ userId, roleId: roleIds });
+
+        const restoredRoles = await this.userRoleRepository.find({
+          where: { userId },
+          select: ['roleId'],
+        });
+        ignoreRoleIds = restoredRoles.map((role) => role.roleId);
+      }
+
+      const newRoles = roleIds
+        .filter((roleId) => !ignoreRoleIds.includes(roleId))
+        .map((roleId) => ({
+          userId,
+          roleId,
+        }));
+
+      if (newRoles.length > 0) {
+        await this.userRoleRepository.save(newRoles);
+      }
+
+      const addRoles = await this.roleRepository.findByIds(roleIds);
+
+      return { user, userCreated, roles: addRoles };
     } catch (error) {
       this.logger.error(
         `Error registering user with userId: ${userId}`,
