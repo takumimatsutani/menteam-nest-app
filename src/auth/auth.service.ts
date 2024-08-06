@@ -119,4 +119,18 @@ export class AuthService {
       throw new InternalServerErrorException('Error registering user');
     }
   }
+
+  async deleteUser(userId: string): Promise<void> {
+    this.logger.log(`Deleting user with userId: ${userId}`);
+    try {
+      await this.userRepository.delete({ userId });
+      this.logger.log(`User deleted successfully with userId: ${userId}`);
+    } catch (error) {
+      this.logger.error(
+        `Error deleting user with userId: ${userId}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException('Error deleting user');
+    }
+  }
 }

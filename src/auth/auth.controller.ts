@@ -11,7 +11,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/auth.dto';
 import { RegisterDto } from './dto/register.dto';
 
-@Controller('auth')
+@Controller()
 export class AuthController {
   private readonly logger: Logger = new Logger(AuthController.name);
 
@@ -41,7 +41,7 @@ export class AuthController {
     }
   }
 
-  @Post('register')
+  @Post('add.user')
   async register(
     @Body() registerDto: RegisterDto,
   ): Promise<{ accessToken: string }> {
@@ -72,6 +72,21 @@ export class AuthController {
         );
         throw new InternalServerErrorException('Registration failed');
       }
+    }
+  }
+
+  @Post('delete.user')
+  async deleteUser(@Body() userId: string): Promise<void> {
+    this.logger.log(`Deleting user with userId: ${userId}`);
+    try {
+      await this.authService.deleteUser(userId);
+      this.logger.log(`User deleted successfully: ${userId}`);
+    } catch (error) {
+      this.logger.error(
+        `Error deleting user with userId: ${userId} - ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException('Error deleting user');
     }
   }
 }
