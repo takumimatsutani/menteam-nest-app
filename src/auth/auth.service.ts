@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import {
   Injectable,
   Logger,
@@ -11,8 +12,8 @@ import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto';
-import { UserRole } from 'src/user/userRole.entity';
-import { Role } from 'src/user/entities/role.entity';
+import { UserRole } from '../user/entities/user-role.entity';
+import { Role } from '../user/entities/role.entity';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +22,9 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(UserRole)
     private userRoleRepository: Repository<UserRole>,
+    @InjectRepository(Role)
     private roleRepository: Repository<Role>,
     private jwtService: JwtService,
     private configService: ConfigService,
@@ -98,7 +101,9 @@ export class AuthService {
     const { userId, password, roleIds } = registerDto;
     this.logger.log(`Registering user with userId: ${userId}`);
 
-    const roles = await this.roleRepository.findByIds(roleIds);
+    const roles = await this.roleRepository.find({
+      where: roleIds.map((roleId) => ({ roleId: parseInt(roleId, 10) })),
+    });
     if (roleIds.length !== roles.length) {
       throw new BadRequestException('Invalid roleIds');
     }
@@ -110,42 +115,35 @@ export class AuthService {
     let userCreated: boolean;
 
     try {
-      [user, userCreated] = await this.userRepository.findOrCreate({
+      const existingUser = await this.userRepository.findOne({
         where: { userId },
-        defaults: { password: generatedPassword },
+        withDeleted: true, // これにより、削除済みユーザーも含めて検索します
       });
 
-      if (!userCreated) {
-        await this.userRepository.restore({ userId });
-        user.password = generatedPassword;
-        await this.userRepository.save(user);
+      if (existingUser) {
+        this.logger.warn(`User already exists with userId: ${userId}`);
+        throw new BadRequestException('User already exists with this userId');
       }
 
-      let ignoreRoleIds: string[] = [];
+      user = this.userRepository.create({
+        userId,
+        password: generatedPassword,
+      });
+      await this.userRepository.save(user);
+      userCreated = true;
 
-      if (!userCreated) {
-        await this.userRoleRepository.softDelete({ userId });
-        await this.userRoleRepository.restore({ userId, roleId: roleIds });
-
-        const restoredRoles = await this.userRoleRepository.find({
-          where: { userId },
-          select: ['roleId'],
-        });
-        ignoreRoleIds = restoredRoles.map((role) => role.roleId);
-      }
-
-      const newRoles = roleIds
-        .filter((roleId) => !ignoreRoleIds.includes(roleId))
-        .map((roleId) => ({
-          userId,
-          roleId,
-        }));
+      const newRoles = roleIds.map((roleId) => ({
+        userId,
+        roleId: parseInt(roleId, 10), // roleIdをnumber型に変換
+      }));
 
       if (newRoles.length > 0) {
         await this.userRoleRepository.save(newRoles);
       }
 
-      const addRoles = await this.roleRepository.findByIds(roleIds);
+      const addRoles = await this.roleRepository.find({
+        where: roleIds.map((roleId) => ({ roleId: parseInt(roleId, 10) })),
+      });
 
       return { user, userCreated, roles: addRoles };
     } catch (error) {
