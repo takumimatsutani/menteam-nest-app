@@ -1,4 +1,4 @@
-import { IsString, IsArray, ArrayNotEmpty } from 'class-validator';
+import { IsString, IsArray, ArrayNotEmpty, IsInt } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -9,5 +9,6 @@ export class RegisterDto {
 
   @IsArray()
   @ArrayNotEmpty()
-  roleIds: string[];
+  @IsInt({ each: true })
+  roleIds: number[];
 }

@@ -3,13 +3,9 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { AllExceptionsFilter } from './core/status_response';
-import { WinstonModule } from 'nest-winston';
-import { winstonConfig } from './logger.config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: WinstonModule.createLogger(winstonConfig),
-  });
+  const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
   const host = configService.get<string>('HOST') || 'localhost';

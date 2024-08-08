@@ -102,7 +102,7 @@ export class AuthService {
     this.logger.log(`Registering user with userId: ${userId}`);
 
     const roles = await this.roleRepository.find({
-      where: roleIds.map((roleId) => ({ roleId: parseInt(roleId, 10) })),
+      where: roleIds.map((roleId) => ({ roleId })),
     });
     if (roleIds.length !== roles.length) {
       throw new BadRequestException('Invalid roleIds');
@@ -134,7 +134,7 @@ export class AuthService {
 
       const newRoles = roleIds.map((roleId) => ({
         userId,
-        roleId: parseInt(roleId, 10), // roleIdをnumber型に変換
+        roleId, // roleIdをnumber型に変換
       }));
 
       if (newRoles.length > 0) {
@@ -142,7 +142,7 @@ export class AuthService {
       }
 
       const addRoles = await this.roleRepository.find({
-        where: roleIds.map((roleId) => ({ roleId: parseInt(roleId, 10) })),
+        where: roleIds.map((roleId) => ({ roleId })),
       });
 
       return { user, userCreated, roles: addRoles };
